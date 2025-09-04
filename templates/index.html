@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="balance-container">
+    <div class="header-section">
+        <h1 class="page-title">Relatório de Saldos</h1>
+        <div class="summary-card">
+            <span class="summary-label">Total de registros</span>
+            <span class="summary-value">{{ pagination.total or 0 }}</span>
+        </div>
+    </div>
+
+    {% if saldos %}
+    <div class="table-wrapper">
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Hora</th>
+                        <th>Código</th>
+                        <th>Conta</th>
+                        <th>Descrição do Lançamento</th>
+                        <th>Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in saldos %}
+                    <tr>
+                        <td>
+                            <span class="date-display">
+                                {{ s.data.strftime("%d/%m/%Y") if s.data else "-" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="time-display">
+                                {{ s.hora if s.hora else "-" }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="account-code">{{ s.conta.codigo_conta }}</span>
+                        </td>
+                        <td>
+                            <div class="account-info">
+                                <span class="account-description">{{ s.conta.descricao }}</span>
+                            </div>
+                        </td>
+                        
+                        <td class="transaction-description">
+                            {{ s.descricao or '-' }}
+                        </td>
+
+                        <td>
+                            <span class="amount {{ 'positive' if s.valor > 0 else 'negative' if s.valor < 0 else 'zero' }}">
+                                R$ {{ "{:,.2f}".format(s.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if pagination.pages > 1 %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=pagination.prev_num) }}">Anterior</a>
+            </li>
+            {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('index', page=page_num) }}">{{ page_num }}</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                {% endif %}
+            {% endfor %}
+            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('index', page=pagination.next_num) }}">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 11H15M12 8V14M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"/>
+            </svg>
+        </div>
+        <h3 class="empty-title">Nenhum saldo encontrado</h3>
+        <p class="empty-description">Não há registros de saldos cadastrados ainda.</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+/* ... (seu CSS aqui, sem alterações) ... */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.balance-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #F2F2F2;
+    min-height: 100vh;
+}
+
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-title {
+    color: #262626;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.summary-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(38, 38, 38, 0.08);
+    border-left: 4px solid #5E92BF;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+}
+
+.summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #5E92BF;
+}
+
+.table-wrapper {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(38, 38, 38, 0.08);
+    overflow: hidden;
+    border: 1px solid rgba(94, 146, 191, 0.1);
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.modern-table thead {
+    background: linear-gradient(135deg, #5E92BF 0%, #4A7BA7 100%);
+}
+
+.modern-table thead th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: white;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: none;
+}
+
+.modern-table tbody tr {
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(242, 242, 242, 0.8);
+}
+
+.modern-table tbody tr:hover {
+    background-color: rgba(94, 146, 191, 0.04);
+    transform: translateY(-1px);
+}
+
+.modern-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.modern-table td {
+    padding: 1rem;
+    vertical-align: middle;
+    color: #262626;
+}
+
+.date-display, .time-display {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: 0.8rem;
+    background: rgba(94, 146, 191, 0.1);
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    color: #5E92BF;
+    display: inline-block;
+}
+
+.account-code {
+    background: rgba(3, 166, 74, 0.1);
+    color: #038C3E;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-block;
+}
+
+.account-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.account-description {
+    color: #262626;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.amount {
+    font-weight: 700;
+    font-size: 1rem;
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    text-align: right;
+}
+
+.amount.positive {
+    background: rgba(3, 166, 74, 0.1);
+    color: #03A64A;
+}
+
+.amount.negative {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.amount.zero {
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+}
+
+.modern-table td.transaction-description {
+    color: #666;
+    font-style: italic;
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(38, 38, 38, 0.08);
+    border: 2px dashed rgba(94, 146, 191, 0.2);
+}
+
+.empty-icon {
+    color: #5E92BF;
+    margin-bottom: 1.5rem;
+}
+
+.empty-title {
+    color: #262626;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-description {
+    color: #666;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .balance-container {
+        padding: 1rem;
+    }
+    
+    .header-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .page-title {
+        font-size: 1.5rem;
+        text-align: center;
+    }
+    
+    .summary-card {
+        align-self: center;
+    }
+    
+    .modern-table {
+        font-size: 0.8rem;
+    }
+    
+    .modern-table th,
+    .modern-table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .amount {
+        font-size: 0.875rem;
+        padding: 0.375rem 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .modern-table thead th {
+        font-size: 0.75rem;
+        padding: 1rem 0.5rem;
+    }
+    
+    .date-display, .time-display, .account-code {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.table-wrapper, .empty-state {
+    animation: fadeIn 0.3s ease-out;
+}
+</style>
+{% endblock %}

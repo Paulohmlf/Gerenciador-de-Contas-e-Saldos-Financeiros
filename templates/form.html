@@ -1,0 +1,653 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="form-container">
+    <div class="header-section">
+        <h1 class="page-title">Adicionar novo saldo</h1>
+        <div class="header-decoration"></div>
+    </div>
+
+    <div class="form-wrapper">
+        <form action="{{ url_for('salvar') }}" method="POST" class="modern-form">
+
+            <div class="form-section">
+                <div class="section-title">Configuração da Conta</div>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input class="radio-input" type="radio" name="account_mode" id="mode_existing" value="existing"
+                               {% if not old or (old and old.account_mode != 'new') %}checked{% endif %}>
+                        <label class="radio-label" for="mode_existing">
+                            <div class="radio-content">
+                                <span class="radio-icon">👤</span>
+                                <div class="radio-text">
+                                    <span class="radio-title">Usar conta existente</span>
+                                    <span class="radio-desc">Selecionar de contas cadastradas</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="radio-option">
+                        <input class="radio-input" type="radio" name="account_mode" id="mode_new" value="new"
+                               {% if old and old.account_mode == 'new' %}checked{% endif %}>
+                        <label class="radio-label" for="mode_new">
+                            <div class="radio-content">
+                                <span class="radio-icon">➕</span>
+                                <div class="radio-text">
+                                    <span class="radio-title">Adicionar nova conta</span>
+                                    <span class="radio-desc">Criar uma nova conta</span>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <!-- OPÇÃO 1: Lista de cards sempre visível -->
+                <div class="form-group" id="existing_account_group">
+                    <label class="form-label">
+                        <span class="label-text">Selecione uma conta existente</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    
+                    <!-- Campo hidden para enviar o valor -->
+                    <input type="hidden" id="conta_id" name="conta_id" value="">
+                    
+                    <!-- Container de busca -->
+                    <div class="search-container">
+                        <input type="text" id="search_account" placeholder="🔍 Digite para buscar uma conta..." class="form-input search-input">
+                    </div>
+                    
+                    <!-- Lista de contas sempre visível -->
+                    <div class="accounts-list" id="accounts_list">
+                        {% for c in contas %}
+                            <div class="account-card" data-id="{{ c.id }}" data-search="{{ c.codigo_conta }} {{ c.descricao }}">
+                                <div class="account-info">
+                                    <div class="account-code">{{ c.codigo_conta }}</div>
+                                    <div class="account-desc">{{ c.descricao }}</div>
+                                </div>
+                                <div class="account-check">
+                                    <span class="checkmark">✓</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-row" id="new_account_group">
+                    <div class="form-group">
+                        <label for="codigo_conta" class="form-label">
+                            <span class="label-text">Código da conta</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <input type="text" class="form-input" id="codigo_conta" name="codigo_conta"
+                               placeholder="Ex: 1001"
+                               value="{{ (old.codigo_conta if old else '') }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="descricao" class="form-label">
+                            <span class="label-text">Descrição da conta</span>
+                            <span class="label-required">*</span>
+                        </label>
+                        <input type="text" class="form-input" id="descricao" name="descricao"
+                               placeholder="Ex: Caixa Principal"
+                               value="{{ (old.descricao if old else '') }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="section-title">Informações Financeiras</div>
+                <div class="form-group amount-group">
+                    <label for="amount" class="form-label">
+                        <span class="label-text">Saldo</span>
+                        <span class="label-required">*</span>
+                    </label>
+                    <div class="amount-input-wrapper">
+                        <span class="currency-symbol">R$</span>
+                        <input type="text" class="form-input amount-input" id="amount" name="amount"
+                               placeholder="1.234,56" value="{{ (old.amount if old else '') }}" required>
+                    </div>
+                    <div class="input-help">Use vírgula para decimais</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="balance_description" class="form-label">
+                        <span class="label-text">Descrição do Lançamento (Opcional)</span>
+                    </label>
+                    <input type="text" class="form-input" id="balance_description" name="balance_description"
+                           placeholder="Ex: Pagamento de conta de luz"
+                           value="{{ (old.balance_description if old else '') }}">
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">
+                    <span class="btn-icon">💾</span>
+                    Salvar Saldo
+                </button>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <span class="btn-icon">↩️</span>
+                    Cancelar
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+/* Todo o CSS anterior + estilos adicionais */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #F2F2F2;
+    min-height: 100vh;
+}
+
+.header-section {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.page-title {
+    color: #262626;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+}
+
+.header-decoration {
+    width: 60px;
+    height: 4px;
+    background: linear-gradient(90deg, #5E92BF 0%, #03A64A 100%);
+    border-radius: 2px;
+    margin: 0 auto;
+}
+
+.form-wrapper {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(38, 38, 38, 0.08);
+    overflow: hidden;
+    border: 1px solid rgba(94, 146, 191, 0.1);
+}
+
+.modern-form {
+    padding: 2.5rem;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+}
+
+.form-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.section-title {
+    color: #5E92BF;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid rgba(94, 146, 191, 0.1);
+}
+
+/* Radio Group Styles */
+.radio-group {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.radio-option {
+    flex: 1;
+    min-width: 280px;
+}
+
+.radio-input {
+    display: none;
+}
+
+.radio-label {
+    display: block;
+    cursor: pointer;
+    background: rgba(242, 242, 242, 0.5);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.radio-label:hover {
+    background: rgba(94, 146, 191, 0.05);
+    border-color: rgba(94, 146, 191, 0.2);
+}
+
+.radio-input:checked + .radio-label {
+    background: rgba(94, 146, 191, 0.1);
+    border-color: #5E92BF;
+    box-shadow: 0 4px 12px rgba(94, 146, 191, 0.15);
+}
+
+.radio-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.radio-icon {
+    font-size: 1.5rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(94, 146, 191, 0.1);
+    border-radius: 50%;
+}
+
+.radio-input:checked + .radio-label .radio-icon {
+    background: #5E92BF;
+    color: white;
+}
+
+.radio-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.radio-title {
+    font-weight: 600;
+    color: #262626;
+    font-size: 1rem;
+}
+
+.radio-desc {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* NOVOS ESTILOS PARA LISTA DE CONTAS */
+.search-container {
+    margin-bottom: 1rem;
+}
+
+.search-input {
+    border-color: #5E92BF;
+    background: rgba(94, 146, 191, 0.02);
+}
+
+.accounts-list {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.account-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.account-card:last-child {
+    border-bottom: none;
+}
+
+.account-card:hover {
+    background: rgba(94, 146, 191, 0.05);
+    transform: translateX(5px);
+}
+
+.account-card.selected {
+    background: rgba(94, 146, 191, 0.1);
+    border-left: 4px solid #5E92BF;
+}
+
+.account-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.account-code {
+    font-weight: 600;
+    color: #5E92BF;
+    font-size: 1rem;
+}
+
+.account-desc {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.account-check {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.account-card.selected .account-check {
+    opacity: 1;
+}
+
+.checkmark {
+    color: #03A64A;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+/* Form Fields */
+.form-row {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.form-row .form-group {
+    flex: 1;
+    min-width: 250px;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.label-text {
+    color: #262626;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.label-required {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.form-input, .form-select {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    font-size: 1rem;
+    color: #262626;
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.form-input:focus, .form-select:focus {
+    outline: none;
+    border-color: #5E92BF;
+    box-shadow: 0 0 0 3px rgba(94, 146, 191, 0.15);
+}
+
+.form-input::placeholder {
+    color: #adb5bd;
+}
+
+/* Amount Input */
+.amount-group {
+    max-width: 300px;
+}
+
+.amount-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.currency-symbol {
+    position: absolute;
+    left: 1rem;
+    color: #03A64A;
+    font-weight: 600;
+    z-index: 1;
+}
+
+.amount-input {
+    padding-left: 3.2rem;
+    font-weight: 600;
+    color: #03A64A;
+    font-size: 1.1rem;
+}
+
+.input-help {
+    font-size: 0.8rem;
+    color: #6c757d;
+    margin-top: 0.5rem;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-start;
+    padding-top: 2rem;
+    border-top: 1px solid #e9ecef;
+    flex-wrap: wrap;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.75rem;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-size: 1rem;
+    min-width: 140px;
+    justify-content: center;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #03A64A 0%, #038C3E 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(3, 166, 74, 0.25);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(3, 166, 74, 0.35);
+}
+
+.btn-secondary {
+    background: white;
+    color: #6c757d;
+    border: 2px solid #dee2e6;
+}
+
+.btn-secondary:hover {
+    background: #f8f9fa;
+    border-color: #ced4da;
+    transform: translateY(-1px);
+}
+
+.btn-icon {
+    font-size: 1.1rem;
+}
+
+/* Estados dos grupos de campos */
+#new_account_group {
+    display: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .form-container {
+        padding: 1rem;
+    }
+    
+    .modern-form {
+        padding: 1.5rem;
+    }
+    
+    .radio-group {
+        flex-direction: column;
+    }
+    
+    .radio-option {
+        min-width: auto;
+    }
+    
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .form-row .form-group {
+        min-width: auto;
+    }
+    
+    .form-actions {
+        justify-content: stretch;
+    }
+    
+    .btn {
+        flex: 1;
+        width: 100%;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+    }
+    
+    .accounts-list {
+        max-height: 250px;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.form-wrapper {
+    animation: fadeIn 0.4s ease-out;
+}
+
+.form-group {
+    transition: all 0.3s ease;
+}
+</style>
+
+<script>
+function toggleAccountFields() {
+    const modeExisting = document.getElementById('mode_existing').checked;
+    const existingGroup = document.getElementById('existing_account_group');
+    const newGroup = document.getElementById('new_account_group');
+    
+    const contaIdInput = document.getElementById('conta_id');
+    const codigoContaInput = document.getElementById('codigo_conta');
+    const descricaoInput = document.getElementById('descricao');
+
+    if (modeExisting) {
+        existingGroup.style.display = 'block';
+        newGroup.style.display = 'none';
+        
+        contaIdInput.setAttribute('required', 'required');
+        codigoContaInput.removeAttribute('required');
+        descricaoInput.removeAttribute('required');
+    } else {
+        existingGroup.style.display = 'none';
+        newGroup.style.display = 'flex';
+
+        contaIdInput.removeAttribute('required');
+        codigoContaInput.setAttribute('required', 'required');
+        descricaoInput.setAttribute('required', 'required');
+    }
+}
+
+// Função para seleção de conta
+function setupAccountSelection() {
+    const accountCards = document.querySelectorAll('.account-card');
+    const contaIdInput = document.getElementById('conta_id');
+    
+    accountCards.forEach(card => {
+        card.addEventListener('click', function() {
+            // Remove seleção anterior
+            accountCards.forEach(c => c.classList.remove('selected'));
+            
+            // Adiciona seleção atual
+            this.classList.add('selected');
+            
+            // Atualiza campo hidden
+            contaIdInput.value = this.dataset.id;
+        });
+    });
+}
+
+// Função de busca
+function setupSearch() {
+    const searchInput = document.getElementById('search_account');
+    const accountCards = document.querySelectorAll('.account-card');
+    
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        
+        accountCards.forEach(card => {
+            const searchData = card.dataset.search.toLowerCase();
+            if (searchData.includes(searchTerm)) {
+                card.style.display = 'flex';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    });
+}
+
+// Event listeners para os botões de rádio
+document.getElementById('mode_existing').addEventListener('change', toggleAccountFields);
+document.getElementById('mode_new').addEventListener('change', toggleAccountFields);
+
+// Máscara de formatação para o campo de valor
+document.getElementById('amount').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/\D/g, '');
+    if (value) {
+        let num = parseFloat(value) / 100;
+        e.target.value = num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    } else {
+        e.target.value = '';
+    }
+});
+
+// Inicialização
+document.addEventListener('DOMContentLoaded', function() {
+    toggleAccountFields();
+    setupAccountSelection();
+    setupSearch();
+});
+</script>
+{% endblock %}
