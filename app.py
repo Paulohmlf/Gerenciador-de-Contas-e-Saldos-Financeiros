@@ -7,7 +7,6 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import logging
 
-# Configuração de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,6 @@ class ProductionConfig(Config):
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///Formulario.db'
 
-# --- Models com nomes em Português ---
 class Conta(db.Model):
     """Modelo para contas financeiras"""
     __tablename__ = 'contas'
@@ -55,15 +53,9 @@ class Conta(db.Model):
 class Saldo(db.Model):
     """Modelo para saldos das contas"""
     __tablename__ = 'saldos'
-    
-    # --- ALTERAÇÃO 1: REMOVIDA A COLUNA 'id' ---
-    # id = db.Column(db.Integer, primary_key=True)
-    
     valor = db.Column(db.Numeric(14, 2), nullable=False)
     data = db.Column(db.Date, nullable=False)
     hora = db.Column(db.String(8), nullable=False)
-    
-    # --- ALTERAÇÃO 2: DEFINIDA UMA CHAVE PRIMÁRIA COMPOSTA ---
     criado_em = db.Column(db.DateTime, nullable=False, primary_key=True)
     conta_id = db.Column(db.Integer, db.ForeignKey('contas.id'), nullable=False, index=True, primary_key=True)
     
@@ -72,14 +64,12 @@ class Saldo(db.Model):
     conta = db.relationship('Conta', backref=db.backref('saldos', lazy='dynamic'))
 
     def __repr__(self) -> str:
-        # --- ALTERAÇÃO 3: Atualizado o __repr__ para não usar o id ---
         return f'<Saldo da conta {self.conta_id} - {self.valor}>'
 
     @property
     def valor_formatado(self) -> str:
         return f"R$ {self.valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
 
-# Validators (Nenhuma mudança necessária aqui)
 class DataValidator:
     @staticmethod
     def validate_amount(amount_str: str) -> Tuple[Optional[Decimal], Optional[str]]:
@@ -118,8 +108,6 @@ class DataValidator:
             return None, 'Descrição muito longa (máx 200 caracteres).'
         return description, None
 
-
-# --- Services atualizados para os novos nomes ---
 class ContaService:
     @staticmethod
     def get_or_create_account(codigo_conta: str, descricao: str) -> Tuple[Optional[Conta], list]:
@@ -175,14 +163,12 @@ class SaldoService:
 
     @staticmethod
     def get_paginated_saldos(page: int = 1, per_page: int = 20):
-        # --- ALTERAÇÃO 4: Ajustada a ordenação para não usar o id ---
         return (Saldo.query
                 .join(Conta)
                 .filter(Conta.ativo == True)
                 .order_by(desc(Saldo.data), desc(Saldo.hora), desc(Saldo.criado_em))
                 .paginate(page=page, per_page=per_page, error_out=False))
 
-# --- Rotas atualizadas para os novos nomes ---
 def create_app(config_name: str = 'development') -> Flask:
     app = Flask(__name__)
     config_mapping = {
