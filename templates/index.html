@@ -3,57 +3,59 @@
 {% block content %}
 <div class="balance-container">
     <div class="header-section">
-        <h1 class="page-title">Relatório de Saldos</h1>
+        <h1 class="page-title">Controle de Saldos por Conta</h1>
         <div class="summary-card">
-            <span class="summary-label">Total de registros</span>
-            <span class="summary-value">{{ pagination.total or 0 }}</span>
+            <span class="summary-label">Total de contas</span>
+            <span class="summary-value">{{ contas|length or 0 }}</span>
         </div>
     </div>
 
-    {% if saldos %}
+    {% if contas %}
     <div class="table-wrapper">
         <div class="table-container">
             <table class="modern-table">
                 <thead>
                     <tr>
-                        <th>Data</th>
-                        <th>Hora</th>
-                        <th>Código</th>
-                        <th>Conta</th>
-                        <th>Descrição do Lançamento</th>
-                        <th>Saldo</th>
+                        <th style="width: 12%;">Código da Conta</th>
+                        <th style="width: 22%;">Descrição</th>
+                        <th style="width: 15%;">Saldo Atual</th>
+                        <th style="width: 40%;">Últimos Saldos</th>
+                        <th style="width: 11%;">Ação</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for s in saldos %}
+                    {% for conta in contas %}
                     <tr>
                         <td>
-                            <span class="date-display">
-                                {{ s.data.strftime("%d/%m/%Y") if s.data else "-" }}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="time-display">
-                                {{ s.hora if s.hora else "-" }}
-                            </span>
-                        </td>
-                        <td>
-                            <span class="account-code">{{ s.conta.codigo_conta }}</span>
+                            <a href="{{ url_for('ver_conta', conta_id=conta.id) }}" class="account-code-link">
+                                <span class="account-code">{{ conta.codigo_conta }}</span>
+                            </a>
                         </td>
                         <td>
                             <div class="account-info">
-                                <span class="account-description">{{ s.conta.descricao }}</span>
+                                <span class="account-description">{{ conta.descricao }}</span>
                             </div>
                         </td>
-                        
-                        <td class="transaction-description">
-                            {{ s.descricao or '-' }}
-                        </td>
-
                         <td>
-                            <span class="amount {{ 'positive' if s.valor > 0 else 'negative' if s.valor < 0 else 'zero' }}">
-                                R$ {{ "{:,.2f}".format(s.valor).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                            <span class="amount {{ 'positive' if conta.saldo_atual != 'R$ 0,00' else 'zero' }}">
+                                {{ conta.saldo_atual }}
                             </span>
+                        </td>
+                        <td class="transaction-description">
+                            {% if conta.ultimos_saldos and conta.ultimos_saldos != 'Nenhum registro anterior' %}
+                                {{ conta.ultimos_saldos }}
+                            {% else %}
+                                <em style="color: #666;">{{ conta.ultimos_saldos }}</em>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button class="add-balance-btn" onclick="openBalanceModal('{{ conta.id }}', '{{ conta.codigo_conta }}', '{{ conta.descricao }}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                Novo Saldo
+                            </button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -62,43 +64,76 @@
         </div>
     </div>
 
-    {% if pagination.pages > 1 %}
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center">
-            <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('index', page=pagination.prev_num) }}">Anterior</a>
-            </li>
-            {% for page_num in pagination.iter_pages() %}
-                {% if page_num %}
-                    <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('index', page=page_num) }}">{{ page_num }}</a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled"><span class="page-link">...</span></li>
-                {% endif %}
-            {% endfor %}
-            <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('index', page=pagination.next_num) }}">Próxima</a>
-            </li>
-        </ul>
-    </nav>
-    {% endif %}
-
     {% else %}
     <div class="empty-state">
         <div class="empty-icon">
             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M9 11H15M12 8V14M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"/>
+                <path d="M9 11H15M12 8V14M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3C7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"/>
             </svg>
         </div>
-        <h3 class="empty-title">Nenhum saldo encontrado</h3>
-        <p class="empty-description">Não há registros de saldos cadastrados ainda.</p>
+        <h3 class="empty-title">Nenhuma conta encontrada</h3>
+        <p class="empty-description">Não há contas cadastradas ainda.</p>
     </div>
     {% endif %}
 </div>
 
+<!-- Modal para adicionar novo saldo -->
+<div id="balanceModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Novo Saldo para Conta</h3>
+            <button class="close-btn" onclick="closeBalanceModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        
+        <form id="balanceForm" method="POST" action="{{ url_for('adicionar_saldo') }}">
+            <div class="form-content">
+                <div class="account-display">
+                    <span class="account-badge" id="modalAccountCode"></span>
+                    <span class="account-name" id="modalAccountName"></span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount">Novo Valor do Saldo</label>
+                    <input type="text" 
+                           id="amount" 
+                           name="amount" 
+                           placeholder="Ex: 1.234,56" 
+                           class="form-control"
+                           required>
+                    <small class="form-hint">Digite o valor usando vírgula para decimais (ex: 1.234,56)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="balance_description">Descrição (opcional)</label>
+                    <textarea id="balance_description" 
+                              name="balance_description" 
+                              placeholder="Motivo da atualização do saldo..."
+                              class="form-control"
+                              rows="3"></textarea>
+                </div>
+                
+                <input type="hidden" id="conta_id" name="conta_id">
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeBalanceModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="20,6 9,17 4,12"></polyline>
+                    </svg>
+                    Salvar Saldo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <style>
-/* ... (seu CSS aqui, sem alterações) ... */
 * {
     margin: 0;
     padding: 0;
@@ -206,14 +241,8 @@
     color: #262626;
 }
 
-.date-display, .time-display {
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-    font-size: 0.8rem;
-    background: rgba(94, 146, 191, 0.1);
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    color: #5E92BF;
-    display: inline-block;
+.account-code-link {
+    text-decoration: none;
 }
 
 .account-code {
@@ -224,6 +253,12 @@
     font-weight: 600;
     font-size: 0.8rem;
     display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.account-code:hover {
+    background: rgba(3, 166, 74, 0.2);
+    transform: scale(1.05);
 }
 
 .account-info {
@@ -263,11 +298,203 @@
 
 .modern-table td.transaction-description {
     color: #666;
-    font-style: italic;
-    max-width: 250px;
+    max-width: 300px;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+
+/* Botão de adicionar saldo */
+.add-balance-btn {
+    background: linear-gradient(135deg, #5E92BF 0%, #4A7BA7 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+}
+
+.add-balance-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(94, 146, 191, 0.4);
+}
+
+.add-balance-btn:active {
+    transform: translateY(0);
+}
+
+/* Modal styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(242, 242, 242, 0.8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    color: #262626;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: rgba(242, 242, 242, 0.8);
+    color: #262626;
+}
+
+.form-content {
+    padding: 1.5rem;
+}
+
+.account-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: rgba(94, 146, 191, 0.05);
+    border-radius: 8px;
+}
+
+.account-badge {
+    background: rgba(3, 166, 74, 0.1);
+    color: #038C3E;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.account-name {
+    color: #262626;
+    font-weight: 500;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #262626;
+    font-weight: 500;
+    font-size: 0.875rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid rgba(94, 146, 191, 0.2);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #5E92BF;
+    box-shadow: 0 0 0 3px rgba(94, 146, 191, 0.1);
+}
+
+.form-hint {
+    color: #666;
+    font-size: 0.75rem;
+    margin-top: 0.25rem;
+    display: block;
+}
+
+textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid rgba(242, 242, 242, 0.8);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.btn-secondary {
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: rgba(108, 117, 125, 0.2);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #5E92BF 0%, #4A7BA7 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(94, 146, 191, 0.4);
 }
 
 .empty-state {
@@ -295,6 +522,17 @@
     color: #666;
     font-size: 1rem;
     line-height: 1.5;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 @media (max-width: 768px) {
@@ -329,6 +567,21 @@
         font-size: 0.875rem;
         padding: 0.375rem 0.75rem;
     }
+    
+    .modern-table td.transaction-description {
+        max-width: 200px;
+        font-size: 0.75rem;
+    }
+    
+    .add-balance-btn {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.6rem;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 1rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -337,9 +590,18 @@
         padding: 1rem 0.5rem;
     }
     
-    .date-display, .time-display, .account-code {
+    .account-code {
         font-size: 0.7rem;
         padding: 0.2rem 0.4rem;
+    }
+    
+    .modern-table td.transaction-description {
+        max-width: 150px;
+    }
+    
+    .add-balance-btn {
+        font-size: 0.65rem;
+        padding: 0.3rem 0.5rem;
     }
 }
 
@@ -358,4 +620,42 @@
     animation: fadeIn 0.3s ease-out;
 }
 </style>
+
+<script>
+function openBalanceModal(contaId, codigoConta, descricaoConta) {
+    document.getElementById('conta_id').value = contaId;
+    document.getElementById('modalAccountCode').textContent = codigoConta;
+    document.getElementById('modalAccountName').textContent = descricaoConta;
+    
+    // Limpar formulário
+    document.getElementById('amount').value = '';
+    document.getElementById('balance_description').value = '';
+    
+    document.getElementById('balanceModal').classList.add('active');
+}
+
+function closeBalanceModal() {
+    document.getElementById('balanceModal').classList.remove('active');
+}
+
+// Fechar modal ao clicar fora
+document.getElementById('balanceModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeBalanceModal();
+    }
+});
+
+// Fechar modal com ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeBalanceModal();
+    }
+});
+
+// Formatação do campo de valor
+document.getElementById('amount').addEventListener('input', function(e) {
+    let value = e.target.value.replace(/[^\d,]/g, '');
+    e.target.value = value;
+});
+</script>
 {% endblock %}

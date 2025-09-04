@@ -181,10 +181,39 @@ def create_app(config_name: str = 'development') -> Flask:
 
     @app.route('/')
     def index():
-        page = request.args.get('page', 1, type=int)
-        per_page = min(request.args.get('per_page', 20, type=int), 100)
-        pagination = SaldoService.get_paginated_saldos(page, per_page)
-        return render_template('index.html', pagination=pagination, saldos=pagination.items)
+        # Buscar todas as contas ativas com seus saldos
+        contas = Conta.query.filter_by(ativo=True).order_by(Conta.codigo_conta).all()
+        contas_com_saldos = []
+
+        for conta in contas:
+            # Pegar todos os saldos da conta ordenados do mais recente para o mais antigo
+            saldos_ordenados = (Saldo.query
+                            .filter_by(conta_id=conta.id)
+                            .order_by(desc(Saldo.data), desc(Saldo.hora), desc(Saldo.criado_em))
+                            .all())
+            
+            if saldos_ordenados:
+                saldo_atual = saldos_ordenados[0]
+                ultimos_saldos = saldos_ordenados[1:] if len(saldos_ordenados) > 1 else []
+                
+                # Formatar últimos saldos apenas com valores (sem data)
+                ultimos_saldos_formatados = []
+                for saldo in ultimos_saldos:
+                    valor_formatado = f"R$ {saldo.valor:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                    ultimos_saldos_formatados.append(valor_formatado)
+                
+                # Adicionar propriedades ao objeto conta
+                conta.saldo_atual = saldo_atual.valor_formatado
+                conta.ultimos_saldos = ', '.join(ultimos_saldos_formatados) if ultimos_saldos_formatados else 'Nenhum registro anterior'
+            else:
+                # Conta sem saldos
+                conta.saldo_atual = 'R$ 0,00'
+                conta.ultimos_saldos = 'Nenhum registro anterior'
+                
+            contas_com_saldos.append(conta)
+
+        return render_template('index.html', contas=contas_com_saldos)
+
 
     @app.route('/novo')
     def novo():
@@ -248,6 +277,55 @@ def create_app(config_name: str = 'development') -> Flask:
             for error in saldo_errors:
                 flash(error, 'danger')
             return redirect(url_for('novo'))
+
+    # NOVA ROTA PARA ADICIONAR SALDO VIA MODAL
+    @app.route('/adicionar_saldo', methods=['POST'])
+    def adicionar_saldo():
+        """Rota para adicionar novo saldo a uma conta específica via modal"""
+        try:
+            conta_id = request.form.get('conta_id')
+            valor_raw = request.form.get('amount', '').strip()
+            saldo_descricao = request.form.get('balance_description', '').strip()
+
+            # Validar ID da conta
+            if not conta_id:
+                flash('Erro: ID da conta não informado.', 'danger')
+                return redirect(url_for('index'))
+
+            try:
+                conta = Conta.query.get(int(conta_id))
+                if not conta or not conta.ativo:
+                    flash('Erro: Conta não encontrada ou inativa.', 'danger')
+                    return redirect(url_for('index'))
+            except (ValueError, TypeError):
+                flash('Erro: ID de conta inválido.', 'danger')
+                return redirect(url_for('index'))
+
+            # Validar valor
+            valor_val, amount_error = DataValidator.validate_amount(valor_raw)
+            if amount_error:
+                flash(f'Erro no valor: {amount_error}', 'danger')
+                return redirect(url_for('index'))
+
+            # Criar o novo saldo
+            success, saldo_errors = SaldoService.create_saldo(
+                conta, valor_val, saldo_descricao or None
+            )
+
+            if success:
+                formatted_amount = f"R$ {valor_val:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
+                flash(f'Novo saldo de {formatted_amount} adicionado com sucesso para a conta {conta.codigo_conta}!', 'success')
+                logger.info(f"Novo saldo adicionado via modal - Conta: {conta.codigo_conta}, Valor: {valor_val}")
+            else:
+                for error in saldo_errors:
+                    flash(f'Erro ao salvar: {error}', 'danger')
+
+        except Exception as e:
+            logger.error(f"Erro inesperado ao adicionar saldo: {e}")
+            flash('Erro inesperado. Tente novamente.', 'danger')
+            db.session.rollback()
+
+        return redirect(url_for('index'))
 
     @app.route('/conta/<int:conta_id>')
     def ver_conta(conta_id: int):
