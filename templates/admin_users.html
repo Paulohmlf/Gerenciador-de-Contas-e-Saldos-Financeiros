@@ -1,0 +1,510 @@
+{% extends "base.html" %}
+{% block title %}Administração de Usuários{% endblock %}
+{% block content %}
+<div class="admin-container">
+    <div class="header-section">
+        <h1 class="page-title">Administração de Usuários</h1>
+        <div class="summary-card">
+            <span class="summary-label">Total de usuários</span>
+            <span class="summary-value">{{ usuarios|length or 0 }}</span>
+        </div>
+    </div>
+
+    {% if usuarios %}
+    <div class="table-wrapper">
+        <div class="table-container">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">ID</th>
+                        <th style="width: 25%;">Nome de Usuário</th>
+                        <th style="width: 20%;">Tipo</th>
+                        <th style="width: 25%;">Data de Criação</th>
+                        <th style="width: 15%;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for usuario in usuarios %}
+                    <tr>
+                        <td>{{ usuario.id }}</td>
+                        <td>
+                            <div class="user-info">
+                                <span class="username">{{ usuario.username }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="user-type {{ 'admin' if usuario.tipo == 'admin' else 'normal' }}">
+                                {{ 'Administrador' if usuario.tipo == 'admin' else 'Usuário Normal' }}
+                            </span>
+                        </td>
+                        <td>
+                            {{ usuario.criado_em.strftime('%d/%m/%Y %H:%M') if usuario.criado_em else 'N/A' }}
+                        </td>
+                        <td>
+                            {% if usuario.id != session['user_id'] %}
+                            <button class="delete-btn" onclick="confirmDelete('{{ usuario.id }}', '{{ usuario.username }}')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                                Excluir
+                            </button>
+                            {% else %}
+                            <span class="current-user">Você</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="8.5" cy="7" r="4"></circle>
+                <line x1="18" y1="8" x2="23" y2="13"></line>
+                <line x1="23" y1="8" x2="18" y2="13"></line>
+            </svg>
+        </div>
+        <h3 class="empty-title">Nenhum usuário encontrado</h3>
+        <p class="empty-description">Não há usuários cadastrados no sistema.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="deleteModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Confirmar Exclusão</h3>
+            <button class="close-btn" onclick="closeDeleteModal()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        
+        <div class="modal-body">
+            <p>Tem certeza que deseja excluir o usuário <strong id="deleteUserName"></strong>?</p>
+            <p class="warning-text">Esta ação não pode ser desfeita.</p>
+        </div>
+        
+        <div class="modal-footer">
+            <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+            <form id="deleteForm" method="POST" action="{{ url_for('excluir_usuario') }}" style="display: inline;">
+                <input type="hidden" id="user_id" name="user_id">
+                <button type="submit" class="btn-danger">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    Excluir
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #F2F2F2;
+    min-height: 100vh;
+}
+
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-title {
+    color: #262626;
+    font-size: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.summary-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: white;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(38, 38, 38, 0.08);
+    border-left: 4px solid #5E92BF;
+}
+
+.summary-label {
+    font-size: 0.875rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+}
+
+.summary-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #5E92BF;
+}
+
+.table-wrapper {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(38, 38, 38, 0.08);
+    overflow: hidden;
+    border: 1px solid rgba(94, 146, 191, 0.1);
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.modern-table thead {
+    background: linear-gradient(135deg, #5E92BF 0%, #4A7BA7 100%);
+}
+
+.modern-table thead th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    color: white;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: none;
+}
+
+.modern-table tbody tr {
+    transition: all 0.2s ease;
+    border-bottom: 1px solid rgba(242, 242, 242, 0.8);
+}
+
+.modern-table tbody tr:hover {
+    background-color: rgba(94, 146, 191, 0.04);
+    transform: translateY(-1px);
+}
+
+.modern-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.modern-table td {
+    padding: 1rem;
+    vertical-align: middle;
+    color: #262626;
+}
+
+.username {
+    color: #262626;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.user-type {
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-block;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+}
+
+.user-type.admin {
+    background: rgba(3, 166, 74, 0.1);
+    color: #03A64A;
+}
+
+.user-type.normal {
+    background: rgba(94, 146, 191, 0.1);
+    color: #5E92BF;
+}
+
+.current-user {
+    color: #6c757d;
+    font-style: italic;
+    font-size: 0.8rem;
+}
+
+/* Botão de exclusão */
+.delete-btn {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.delete-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.delete-btn:active {
+    transform: translateY(0);
+}
+
+/* Modal styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal-overlay.active {
+    display: flex;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(242, 242, 242, 0.8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    color: #262626;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: rgba(242, 242, 242, 0.8);
+    color: #262626;
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.modal-body p {
+    margin-bottom: 1rem;
+    color: #262626;
+}
+
+.warning-text {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.modal-footer {
+    padding: 1.5rem;
+    border-top: 1px solid rgba(242, 242, 242, 0.8);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.btn-secondary {
+    background: rgba(108, 117, 125, 0.1);
+    color: #6c757d;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+    background: rgba(108, 117, 125, 0.2);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(38, 38, 38, 0.08);
+    border: 2px dashed rgba(94, 146, 191, 0.2);
+}
+
+.empty-icon {
+    color: #5E92BF;
+    margin-bottom: 1.5rem;
+}
+
+.empty-title {
+    color: #262626;
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-description {
+    color: #666;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@media (max-width: 768px) {
+    .admin-container {
+        padding: 1rem;
+    }
+    
+    .header-section {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .page-title {
+        font-size: 1.5rem;
+        text-align: center;
+    }
+    
+    .summary-card {
+        align-self: center;
+    }
+    
+    .modern-table {
+        font-size: 0.8rem;
+    }
+    
+    .modern-table th,
+    .modern-table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .modal-content {
+        width: 95%;
+        margin: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .modern-table thead th {
+        font-size: 0.75rem;
+        padding: 1rem 0.5rem;
+    }
+    
+    .delete-btn {
+        font-size: 0.65rem;
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.table-wrapper, .empty-state {
+    animation: fadeIn 0.3s ease-out;
+}
+</style>
+
+<script>
+let currentUserId = '';
+
+function confirmDelete(userId, userName) {
+    currentUserId = userId;
+    document.getElementById('deleteUserName').textContent = userName;
+    document.getElementById('user_id').value = userId;
+    document.getElementById('deleteModal').classList.add('active');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('active');
+}
+
+// Fechar modal ao clicar fora
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeDeleteModal();
+    }
+});
+
+// Fechar modal com ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeDeleteModal();
+    }
+});
+</script>
+{% endblock %}

@@ -1,11 +1,12 @@
 import os
 from typing import Optional, Tuple, Dict, Any
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, desc
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import logging
+import hashlib
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,6 +28,29 @@ class ProductionConfig(Config):
     """Configuração para produção"""
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///Formulario.db'
+
+# No arquivo app.py, modifique a classe Usuario:
+class Usuario(db.Model):
+    """Modelo para usuários do sistema"""
+    __tablename__ = 'usuarios'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    tipo = db.Column(db.String(10), nullable=False, default='normal')  # 'normal' ou 'admin'
+    criado_em = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    ativo = db.Column(db.Boolean, default=True, nullable=False)
+
+    def set_password(self, password):
+        """Cria um hash da senha"""
+        self.password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    def check_password(self, password):
+        """Verifica se a senha está correta"""
+        return self.password_hash == hashlib.sha256(password.encode()).hexdigest()
+
+    def is_admin(self):
+        """Verifica se o usuário é administrador"""
+        return self.tipo == 'admin'
 
 class Conta(db.Model):
     """Modelo para contas financeiras"""
@@ -169,6 +193,18 @@ class SaldoService:
                 .order_by(desc(Saldo.data), desc(Saldo.hora), desc(Saldo.criado_em))
                 .paginate(page=page, per_page=per_page, error_out=False))
 
+def login_required(f):
+    """Decorator para verificar se o usuário está logado"""
+    from functools import wraps
+    
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, faça login para acessar esta página.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
 def create_app(config_name: str = 'development') -> Flask:
     app = Flask(__name__)
     config_mapping = {
@@ -179,7 +215,42 @@ def create_app(config_name: str = 'development') -> Flask:
 
     db.init_app(app)
 
+    # No arquivo app.py, atualize a rota de login:
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        # Se o usuário já está logado, redireciona para a página inicial
+        if 'user_id' in session:
+            return redirect(url_for('index'))
+            
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            
+            # Verificar credenciais no banco de dados
+            usuario = Usuario.query.filter_by(username=username, ativo=True).first()
+            
+            if usuario and usuario.check_password(password):
+                session['user_id'] = usuario.id
+                session['username'] = usuario.username
+                session['user_type'] = usuario.tipo
+                flash('Login realizado com sucesso!', 'success')
+                
+                next_page = request.args.get('next')
+                return redirect(next_page or url_for('index'))
+            else:
+                flash('Usuário ou senha incorretos.', 'danger')
+        
+        return render_template('login.html')
+
+    @app.route('/logout')
+    def logout():
+        session.clear()
+        flash('Você foi desconectado com sucesso.', 'info')
+        return redirect(url_for('login'))
+    
     @app.route('/')
+    @login_required
     def index():
         # Buscar todas as contas ativas com seus saldos
         contas = Conta.query.filter_by(ativo=True).order_by(Conta.codigo_conta).all()
@@ -214,13 +285,75 @@ def create_app(config_name: str = 'development') -> Flask:
 
         return render_template('index.html', contas=contas_com_saldos)
 
+    # No arquivo app.py, adicione a seguinte rota após a rota de login:
 
+    @app.route('/register', methods=['GET', 'POST'])
+    def register():
+        # Se o usuário já está logado, redireciona para a página inicial
+        if 'user_id' in session:
+            return redirect(url_for('index'))
+            
+        if request.method == 'POST':
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            confirm_password = request.form.get('confirm_password', '').strip()
+            tipo = request.form.get('tipo', 'normal').strip()
+            
+            # Validações
+            errors = []
+            
+            if not username:
+                errors.append('O nome de usuário é obrigatório.')
+            elif len(username) < 3:
+                errors.append('O nome de usuário deve ter pelo menos 3 caracteres.')
+            elif Usuario.query.filter_by(username=username).first():
+                errors.append('Este nome de usuário já está em uso.')
+                
+            if not password:
+                errors.append('A senha é obrigatória.')
+            elif len(password) < 6:
+                errors.append('A senha deve ter pelo menos 6 caracteres.')
+            elif password != confirm_password:
+                errors.append('As senhas não coincidem.')
+                
+            if tipo not in ['normal', 'admin']:
+                errors.append('Tipo de usuário inválido.')
+                
+            if errors:
+                for error in errors:
+                    flash(error, 'danger')
+                return render_template('register.html')
+            
+            try:
+                # Criar novo usuário
+                novo_usuario = Usuario(
+                    username=username,
+                    tipo=tipo,
+                    ativo=True
+                )
+                novo_usuario.set_password(password)
+                
+                db.session.add(novo_usuario)
+                db.session.commit()
+                
+                flash('Conta criada com sucesso! Faça login para continuar.', 'success')
+                return redirect(url_for('login'))
+                
+            except Exception as e:
+                logger.error(f"Erro ao criar usuário: {e}")
+                db.session.rollback()
+                flash('Erro interno ao criar a conta. Tente novamente.', 'danger')
+        
+        return render_template('register.html')
+    
     @app.route('/novo')
+    @login_required
     def novo():
         contas = Conta.query.filter_by(ativo=True).order_by(Conta.codigo_conta).all()
         return render_template('form.html', contas=contas, old=request.args.get('old'))
 
     @app.route('/salvar', methods=['POST'])
+    @login_required
     def salvar():
         mode = request.form.get('account_mode', 'existing')
         selected_conta_id = request.form.get('conta_id')
@@ -280,6 +413,7 @@ def create_app(config_name: str = 'development') -> Flask:
 
     # NOVA ROTA PARA ADICIONAR SALDO VIA MODAL
     @app.route('/adicionar_saldo', methods=['POST'])
+    @login_required
     def adicionar_saldo():
         """Rota para adicionar novo saldo a uma conta específica via modal"""
         try:
@@ -327,7 +461,53 @@ def create_app(config_name: str = 'development') -> Flask:
 
         return redirect(url_for('index'))
 
+    @app.route('/admin/usuarios')
+    def admin_usuarios():
+        if 'user_id' not in session:
+            flash('Você precisa fazer login para acessar esta página.', 'error')
+            return redirect(url_for('login'))
+        user = Usuario.query.get(session['user_id'])
+        if user.tipo != 'admin':
+            flash('Acesso negado. Apenas administradores podem acessar esta página.', 'error')
+            return redirect(url_for('index'))
+        usuarios = Usuario.query.order_by(Usuario.username).all()
+        
+        return render_template('admin_users.html', usuarios=usuarios)
+
+    @app.route('/admin/excluir_usuario', methods=['POST'])
+    def excluir_usuario():
+        if 'user_id' not in session:
+            flash('Você precisa fazer login para realizar esta ação.', 'error')
+            return redirect(url_for('login'))
+        
+        # Verificar se o usuário é administrador
+        # CORREÇÃO AQUI: User -> Usuario
+        user = Usuario.query.get(session['user_id'])
+        if user.tipo != 'admin':
+            flash('Acesso negado. Apenas administradores podem realizar esta ação.', 'error')
+            return redirect(url_for('index'))
+        
+        user_id = request.form.get('user_id')
+        
+        # Verificar se o usuário está tentando excluir a si mesmo
+        if int(user_id) == session['user_id']:
+            flash('Você não pode excluir sua própria conta.', 'error')
+            return redirect(url_for('admin_usuarios'))
+        
+        # Buscar o usuário a ser excluído
+        # CORREÇÃO AQUI: User -> Usuario
+        usuario = Usuario.query.get(user_id)
+        if usuario:
+            # Excluir o usuário
+            db.session.delete(usuario)
+            db.session.commit()
+            flash(f'Usuário {usuario.username} excluído com sucesso.', 'success')
+        else:
+            flash('Usuário não encontrado.', 'error')
+        
+        return redirect(url_for('admin_usuarios'))
     @app.route('/conta/<int:conta_id>')
+    @login_required
     def ver_conta(conta_id: int):
         conta = Conta.query.filter_by(id=conta_id, ativo=True).first_or_404()
         page = request.args.get('page', 1, type=int)
@@ -351,6 +531,15 @@ def create_app(config_name: str = 'development') -> Flask:
 def init_db(app: Flask):
     with app.app_context():
         db.create_all()
+        
+        # Criar usuário admin padrão se não existir
+        if not Usuario.query.filter_by(username='admin').first():
+            usuario = Usuario(username='admin', tipo='admin', ativo=True)
+            usuario.set_password('admin123')
+            db.session.add(usuario)
+            db.session.commit()
+            logger.info("Usuário admin padrão criado: admin/admin123")
+            
         logger.info("Banco de dados inicializado.")
 
 if __name__ == '__main__':
