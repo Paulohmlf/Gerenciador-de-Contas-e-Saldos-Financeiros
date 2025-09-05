@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime
 import logging
 import hashlib
+from functools import wraps # Importar wraps
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -195,13 +196,27 @@ class SaldoService:
 
 def login_required(f):
     """Decorator para verificar se o usuário está logado"""
-    from functools import wraps
-    
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             flash('Por favor, faça login para acessar esta página.', 'warning')
             return redirect(url_for('login', next=request.url))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    """Decorator para verificar se o usuário é admin"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Por favor, faça login para acessar esta página.', 'warning')
+            return redirect(url_for('login', next=request.url))
+        
+        user = Usuario.query.get(session['user_id'])
+        if not user or not user.is_admin():
+            flash('Acesso negado. Apenas administradores podem acessar esta página.', 'danger')
+            return redirect(url_for('index'))
+            
         return f(*args, **kwargs)
     return decorated_function
 
@@ -297,7 +312,7 @@ def create_app(config_name: str = 'development') -> Flask:
             username = request.form.get('username', '').strip()
             password = request.form.get('password', '').strip()
             confirm_password = request.form.get('confirm_password', '').strip()
-            tipo = request.form.get('tipo', 'normal').strip()
+            # Removido: tipo = request.form.get('tipo', 'normal').strip()
             
             # Validações
             errors = []
@@ -316,19 +331,18 @@ def create_app(config_name: str = 'development') -> Flask:
             elif password != confirm_password:
                 errors.append('As senhas não coincidem.')
                 
-            if tipo not in ['normal', 'admin']:
-                errors.append('Tipo de usuário inválido.')
-                
+            # Removida a validação de 'tipo'
+            
             if errors:
                 for error in errors:
                     flash(error, 'danger')
                 return render_template('register.html')
             
             try:
-                # Criar novo usuário
+                # Criar novo usuário sempre como 'normal'
                 novo_usuario = Usuario(
                     username=username,
-                    tipo=tipo,
+                    tipo='normal',  # Define o tipo como 'normal' diretamente
                     ativo=True
                 )
                 novo_usuario.set_password(password)
@@ -462,50 +476,73 @@ def create_app(config_name: str = 'development') -> Flask:
         return redirect(url_for('index'))
 
     @app.route('/admin/usuarios')
+    @admin_required
     def admin_usuarios():
-        if 'user_id' not in session:
-            flash('Você precisa fazer login para acessar esta página.', 'error')
-            return redirect(url_for('login'))
-        user = Usuario.query.get(session['user_id'])
-        if user.tipo != 'admin':
-            flash('Acesso negado. Apenas administradores podem acessar esta página.', 'error')
-            return redirect(url_for('index'))
         usuarios = Usuario.query.order_by(Usuario.username).all()
-        
         return render_template('admin_users.html', usuarios=usuarios)
 
+    # ROTA PARA PROMOVER USUÁRIO A ADMIN
+    @app.route('/admin/promover_usuario', methods=['POST'])
+    @admin_required
+    def promover_usuario():
+        user_id_to_promote = request.form.get('user_id')
+
+        if not user_id_to_promote:
+            flash('ID de usuário não fornecido.', 'danger')
+            return redirect(url_for('admin_usuarios'))
+
+        user_to_promote = Usuario.query.get(user_id_to_promote)
+
+        if not user_to_promote:
+            flash('Usuário não encontrado.', 'danger')
+            return redirect(url_for('admin_usuarios'))
+
+        if user_to_promote.is_admin():
+            flash(f'O usuário {user_to_promote.username} já é um administrador.', 'warning')
+            return redirect(url_for('admin_usuarios'))
+
+        try:
+            user_to_promote.tipo = 'admin'
+            db.session.commit()
+            flash(f'Usuário {user_to_promote.username} promovido a administrador com sucesso!', 'success')
+            current_user = Usuario.query.get(session['user_id'])
+            logger.info(f"Usuário '{current_user.username}' promoveu '{user_to_promote.username}' para admin.")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Erro ao promover usuário {user_to_promote.id}: {e}")
+            flash('Ocorreu um erro ao promover o usuário. Tente novamente.', 'danger')
+
+        return redirect(url_for('admin_usuarios'))
+
     @app.route('/admin/excluir_usuario', methods=['POST'])
+    @admin_required
     def excluir_usuario():
-        if 'user_id' not in session:
-            flash('Você precisa fazer login para realizar esta ação.', 'error')
-            return redirect(url_for('login'))
-        
-        # Verificar se o usuário é administrador
-        # CORREÇÃO AQUI: User -> Usuario
-        user = Usuario.query.get(session['user_id'])
-        if user.tipo != 'admin':
-            flash('Acesso negado. Apenas administradores podem realizar esta ação.', 'error')
-            return redirect(url_for('index'))
-        
         user_id = request.form.get('user_id')
+        
+        if not user_id:
+            flash('ID de usuário não fornecido.', 'danger')
+            return redirect(url_for('admin_usuarios'))
         
         # Verificar se o usuário está tentando excluir a si mesmo
         if int(user_id) == session['user_id']:
-            flash('Você não pode excluir sua própria conta.', 'error')
+            flash('Você não pode excluir sua própria conta.', 'danger')
             return redirect(url_for('admin_usuarios'))
         
-        # Buscar o usuário a ser excluído
-        # CORREÇÃO AQUI: User -> Usuario
-        usuario = Usuario.query.get(user_id)
-        if usuario:
-            # Excluir o usuário
-            db.session.delete(usuario)
-            db.session.commit()
-            flash(f'Usuário {usuario.username} excluído com sucesso.', 'success')
+        usuario_a_excluir = Usuario.query.get(user_id)
+        if usuario_a_excluir:
+            try:
+                db.session.delete(usuario_a_excluir)
+                db.session.commit()
+                flash(f'Usuário {usuario_a_excluir.username} excluído com sucesso.', 'success')
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Erro ao excluir usuário {usuario_a_excluir.id}: {e}")
+                flash('Ocorreu um erro ao excluir o usuário.', 'danger')
         else:
-            flash('Usuário não encontrado.', 'error')
+            flash('Usuário não encontrado.', 'danger')
         
         return redirect(url_for('admin_usuarios'))
+
     @app.route('/conta/<int:conta_id>')
     @login_required
     def ver_conta(conta_id: int):
@@ -535,10 +572,12 @@ def init_db(app: Flask):
         # Criar usuário admin padrão se não existir
         if not Usuario.query.filter_by(username='admin').first():
             usuario = Usuario(username='admin', tipo='admin', ativo=True)
-            usuario.set_password('admin123')
+            # --- ALTERAÇÃO DA SENHA AQUI ---
+            usuario.set_password('Nutrane@123') #
             db.session.add(usuario)
             db.session.commit()
-            logger.info("Usuário admin padrão criado: admin/admin123")
+            # --- ATUALIZAÇÃO DA MENSAGEM DE LOG ---
+            logger.info("Usuário admin padrão criado: admin/Nutrane@123")
             
         logger.info("Banco de dados inicializado.")
 

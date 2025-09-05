@@ -41,16 +41,33 @@
                             {{ usuario.criado_em.strftime('%d/%m/%Y %H:%M') if usuario.criado_em else 'N/A' }}
                         </td>
                         <td>
-                            {% if usuario.id != session['user_id'] %}
-                            <button class="delete-btn" onclick="confirmDelete('{{ usuario.id }}', '{{ usuario.username }}')">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                                Excluir
-                            </button>
-                            {% else %}
-                            <span class="current-user">Você</span>
-                            {% endif %}
+                            <div class="actions-group">
+                                {% if usuario.id != session['user_id'] %}
+                                    
+                                    {% if usuario.tipo == 'normal' %}
+                                    <form method="POST" action="{{ url_for('promover_usuario') }}" style="display: inline;">
+                                        <input type="hidden" name="user_id" value="{{ usuario.id }}">
+                                        <button type="submit" class="promote-btn" title="Tornar Administrador">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                                <circle cx="8.5" cy="7" r="4"></circle>
+                                                <polyline points="17 11 19 13 23 9"></polyline>
+                                            </svg>
+                                            Promover
+                                        </button>
+                                    </form>
+                                    {% endif %}
+
+                                    <button class="delete-btn" onclick="confirmDelete('{{ usuario.id }}', '{{ usuario.username }}')" title="Excluir Usuário">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        </svg>
+                                        Excluir
+                                    </button>
+                                {% else %}
+                                    <span class="current-user">Você</span>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
@@ -239,6 +256,12 @@
     font-size: 0.8rem;
 }
 
+.actions-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 /* Botão de exclusão */
 .delete-btn {
     background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
@@ -264,6 +287,33 @@
 .delete-btn:active {
     transform: translateY(0);
 }
+
+/* Botão de promover */
+.promote-btn {
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+
+.promote-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.promote-btn:active {
+    transform: translateY(0);
+}
+
 
 /* Modal styles */
 .modal-overlay {
@@ -457,7 +507,7 @@
         padding: 1rem 0.5rem;
     }
     
-    .delete-btn {
+    .delete-btn, .promote-btn {
         font-size: 0.65rem;
         padding: 0.3rem 0.5rem;
     }
